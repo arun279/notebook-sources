@@ -1,0 +1,7 @@
+[run]
+omit =
+    backend/api/*
+    backend/main.py
+    backend/infra/repositories/*
+    backend/infra/storage/*
+    backend/infra/tasks/* 

@@ -37,6 +37,8 @@ class InMemoryRepository(AbstractRepository):
         for ref in refs:
             if ref.id is None:
                 ref.id = uuid.uuid4()
+            # ensure FK set so downstream lookups know the owning page
+            ref.wiki_page_id = page.id  # type: ignore[assignment]
             self._references[ref.id] = ref
             self._refs_by_page.setdefault(page.id, []).append(ref.id)  # type: ignore[arg-type]
 

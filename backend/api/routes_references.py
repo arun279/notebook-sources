@@ -9,6 +9,7 @@ from backend.api.schemas import (JobResponse, ParseRequest, ReferencesResponse,
 from backend.core.wikipedia_parser import WikipediaParser
 from backend.settings import settings
 from backend.infra.tasks.inline import InlineTaskQueue
+from backend.core.models import ReferenceStatus
 
 # Repository backend choice – SQLite file or in-memory
 if str(settings.database_url).startswith("sqlite"):
@@ -58,14 +59,64 @@ async def get_references(job_id: uuid.UUID) -> ReferencesResponse:  # noqa: D401
 @router.post("/scrape", response_model=JobResponse, status_code=status.HTTP_202_ACCEPTED)
 async def scrape_references(req: ScrapeRequest, bg: BackgroundTasks) -> JobResponse:  # noqa: D401
     job_id = uuid.uuid4()
-    # For MVP: just mark status scraped without actual scraping
+
+    # Pre-map job_id to the page of first reference so /progress works immediately.
+    if req.reference_ids:
+        first_ref = repo.get_reference(req.reference_ids[0])
+        if first_ref is not None:
+            job_page_map[job_id] = first_ref.wiki_page_id  # type: ignore[arg-type]
 
     def job() -> None:
+        from backend.core.scraper import Scraper  # local import to avoid heavy deps at startup
+        from backend.api.routes_progress import ws_manager  # for broadcast
+
+        scraper = Scraper(str(job_id))
+        # Map this scrape job to the wiki page id (first reference)
+        if req.reference_ids:
+            first_ref = repo.get_reference(req.reference_ids[0])
+            if first_ref is not None:
+                job_page_map[job_id] = first_ref.wiki_page_id  # type: ignore[arg-type]
         for ref_id in req.reference_ids:
             ref = repo.get_reference(ref_id)
-            if ref:
-                ref.status = "scraped"  # type: ignore[assignment]
-                repo.update_reference(ref)
+            if ref is None:
+                continue
+
+            # mark as "scraping" before starting
+            ref.status = ReferenceStatus.scraping
+            repo.update_reference(ref)
+            # broadcast
+            import asyncio, uuid as _uuid
+
+            asyncio.run(ws_manager.broadcast(job_id, {
+                "event": "progress_update",
+                "reference_id": str(ref_id),
+                "status": "scraping",
+            }))
+
+            success, error_msg = scraper.scrape(ref, req.aggressive)
+            repo.update_reference(ref)
+
+            asyncio.run(ws_manager.broadcast(job_id, {
+                "event": "reference_done",
+                "reference_id": str(ref_id),
+                "status": ref.status.value,
+                "error": error_msg,
+            }))
+
+        # Job done summary
+        page_id = job_page_map.get(_uuid.UUID(str(job_id)))
+        if page_id:
+            refs = repo.list_references(page_id)
+            successes = sum(1 for r in refs if r.status == ReferenceStatus.scraped)
+            failures = sum(1 for r in refs if r.status == ReferenceStatus.failed)
+        else:
+            successes = failures = 0
+        asyncio.run(ws_manager.broadcast(job_id, {
+            "event": "job_complete",
+            "job_id": str(job_id),
+            "successes": successes,
+            "failures": failures,
+        }))
 
     InlineTaskQueue(bg).enqueue(job)
     return JobResponse(job_id=job_id) 

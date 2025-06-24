@@ -10,4 +10,9 @@ services:
       - ./data:/data
     environment:
       - ENV=dev
-      - DATA_DIR=/data 
+      - DATA_DIR=/data
+  tests:
+    build: .
+    command: pytest -q --cov=backend tests
+    volumes:
+      - .:/app           # project root – includes backend + tests 

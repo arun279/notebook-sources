@@ -9,6 +9,7 @@ from sqlmodel import Field, SQLModel
 
 class ReferenceStatus(str, enum.Enum):
     pending = "pending"
+    scraping = "scraping"
     scraped = "scraped"
     failed = "failed"
     blocked = "blocked"

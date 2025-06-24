@@ -36,4 +36,14 @@ class ReferencesResponse(BaseModel):
 
 class ScrapeRequest(BaseModel):
     reference_ids: List[uuid.UUID]
-    aggressive: bool = False 
+    aggressive: bool = False
+
+
+class ReferenceProgress(BaseModel):
+    reference_id: uuid.UUID
+    status: ReferenceStatus
+
+
+class ProgressResponse(BaseModel):
+    percent: float
+    items: List[ReferenceProgress] 

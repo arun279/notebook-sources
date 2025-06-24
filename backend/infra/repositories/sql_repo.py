@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import uuid
 from typing import Iterable, List
+from pathlib import Path
+from urllib.parse import urlparse
 
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -14,11 +16,24 @@ class SQLRepository(AbstractRepository):
     """SQLModel-powered repository supporting SQLite/Postgres."""
 
     def __init__(self) -> None:
-        self.engine = create_engine(str(settings.database_url), echo=False)
+        from urllib.parse import urlparse
+
+        db_url = str(settings.database_url)
+        # When using a file-based SQLite URL, ensure parent directory exists so
+        # that tests (and the app) do not error with "unable to open database file".
+        if db_url.startswith("sqlite") and ":memory:" not in db_url:
+            # sqlite:///absolute/path OR sqlite:///./relative/path
+            parsed = urlparse(db_url)
+            # remove leading '/' from path on Windows-like paths in URL
+            file_path = parsed.path
+            if file_path:
+                Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+
+        self.engine = create_engine(db_url, echo=False)
         SQLModel.metadata.create_all(self.engine)
 
     def _session(self) -> Session:  # context manager alias
-        return Session(self.engine)
+        return Session(self.engine, expire_on_commit=False)
 
     # WikipediaPage
     def get_wikipedia_page_by_url(self, url: str) -> models.WikipediaPage | None:  # noqa: D401

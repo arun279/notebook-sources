@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 from backend.api import routes_references
+from backend.api import routes_progress
 from backend.settings import settings
 
 app = FastAPI(title="Notebook References API", version="0.1.0")
@@ -19,6 +20,7 @@ app.add_middleware(
 )
 
 app.include_router(routes_references.router)
+app.include_router(routes_progress.router)
 
 
 @app.get("/", include_in_schema=False)
