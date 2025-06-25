@@ -7,6 +7,14 @@ interface Props {
   references: Reference[];
 }
 
+function getDomain(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
+
 const ReferenceTable: React.FC<Props> = ({ references }) => {
   const { selectedIds, toggleSelection, clearSelection } = useStore();
   if (!references.length) {
@@ -14,7 +22,10 @@ const ReferenceTable: React.FC<Props> = ({ references }) => {
   }
   return (
     <table className="min-w-full border border-gray-300 text-sm">
-      <thead className="bg-gray-100 dark:bg-gray-800 dark:text-gray-100 sticky top-0 z-10">
+      <thead
+        className="bg-gray-100 dark:bg-gray-800 dark:text-gray-100 sticky z-10"
+        style={{ top: 'var(--nr-toolbar-h, 56px)' }}
+      >
         <tr>
           <th className="p-2 w-8">
             <input
@@ -30,6 +41,7 @@ const ReferenceTable: React.FC<Props> = ({ references }) => {
             />
           </th>
           <th className="p-2 text-left">Title</th>
+          <th className="p-2 text-left">Domain</th>
           <th className="p-2 text-left">URL</th>
           <th className="p-2 text-left">Status</th>
         </tr>
@@ -48,6 +60,7 @@ const ReferenceTable: React.FC<Props> = ({ references }) => {
                 />
               </td>
               <td className="p-2 max-w-xs truncate" title={ref.title}>{ref.title}</td>
+              <td className="p-2 max-w-xs truncate" title={getDomain(ref.url)}>{getDomain(ref.url)}</td>
               <td className="p-2 max-w-xs truncate" title={ref.url}>
                 <a href={ref.url} target="_blank" rel="noreferrer" className="text-primary underline">
                   {ref.url}

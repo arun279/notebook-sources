@@ -1,10 +1,18 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import useStore from '../store';
 import { getProgress, getReferences, getReferencesByPage, scrapeReferences, API_ROOT, downloadZip } from '../services/api';
 import ReferenceTable from '../components/ReferenceTable';
 import ProgressModal from '../components/ProgressModal';
+
+function getDomain(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
 
 const ReferencesPage: React.FC = () => {
   const {
@@ -16,6 +24,20 @@ const ReferencesPage: React.FC = () => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const pageId = params.get('page');
+
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
+  // update CSS variable for toolbar height for sticky header offset
+  useEffect(() => {
+    function updateVar() {
+      if (toolbarRef.current) {
+        document.documentElement.style.setProperty('--nr-toolbar-h', `${toolbarRef.current.offsetHeight}px`);
+      }
+    }
+    updateVar();
+    window.addEventListener('resize', updateVar);
+    return () => window.removeEventListener('resize', updateVar);
+  }, []);
 
   useEffect(() => {
     if (!parseJobId && !pageId) navigate('/');
@@ -38,7 +60,25 @@ const ReferencesPage: React.FC = () => {
     refetchInterval: 1000,
   });
 
-  if (!parseJobId && !pageId) return null;
+  // -----------------------------------------------------------------
+  // Derived state: filter + scraped helpers
+  // -----------------------------------------------------------------
+  const [search, setSearch] = useState('');
+
+  const filteredRefs = useMemo(() => {
+    if (!refsQuery.data) return [];
+    const q = search.toLowerCase();
+    return refsQuery.data.references.filter(r => {
+      if (!q) return true;
+      return (
+        r.title.toLowerCase().includes(q) ||
+        r.url.toLowerCase().includes(q) ||
+        getDomain(r.url).includes(q)
+      );
+    });
+  }, [search, refsQuery.data]);
+
+  const scrapedIds = useMemo(() => filteredRefs.filter(r => r.status === 'scraped').map(r => r.id), [filteredRefs]);
 
   const handleScrape = async () => {
     if (selectedIds.size === 0) return;
@@ -63,6 +103,13 @@ const ReferencesPage: React.FC = () => {
     }
   };
 
+  const handleDownloadScraped = () => {
+    if (scrapedIds.length === 0) return;
+    downloadZip(scrapedIds);
+  };
+
+  if (!parseJobId && !pageId) return null;
+
   return (
     <div>
       <h2 className="text-2xl font-semibold mb-4">References</h2>
@@ -70,7 +117,17 @@ const ReferencesPage: React.FC = () => {
         <ProgressModal percent={progressQuery.data?.percent ?? 0} />
       )}
       {refsQuery.data && (
-        <div className="mb-2 flex items-center gap-2">
+        <div
+          ref={toolbarRef}
+          className="mb-2 flex flex-wrap items-center gap-2 sticky top-0 bg-gray-50 dark:bg-gray-900 py-2 z-20 shadow-sm"
+        >
+          <input
+            type="text"
+            placeholder="Search title, domain, url…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="px-2 py-1 border rounded-md dark:bg-gray-700 dark:border-gray-600"
+          />
           <button
             className="px-3 py-1 bg-accent text-white rounded disabled:opacity-50"
             disabled={selectedIds.size === 0}
@@ -85,9 +142,17 @@ const ReferencesPage: React.FC = () => {
           >
             Download ZIP
           </button>
+          <button
+            className="px-3 py-1 bg-primary/80 text-white rounded disabled:opacity-50"
+            disabled={scrapedIds.length === 0}
+            onClick={handleDownloadScraped}
+            title="Download all scraped PDFs currently in view"
+          >
+            Download Scraped ({scrapedIds.length})
+          </button>
         </div>
       )}
-      {refsQuery.data && <ReferenceTable references={refsQuery.data.references} />}
+      {refsQuery.data && <ReferenceTable references={filteredRefs} />}
     </div>
   );
 };
