@@ -17,3 +17,15 @@ def test_pdf_generation(tmp_path):
     # Ensure file is written and non-empty
     assert pdf_path.exists()
     assert pdf_path.stat().st_size > 100  # minimal size 
+
+def test_placeholder_renderer_bytes():
+    """Directly exercise the static placeholder PDF renderer for coverage."""
+    from backend.core.pdf_service import PDFService
+
+    sample_html = "<h2>Hi</h2><p>There</p>"
+    pdf_bytes = PDFService._render_placeholder_pdf(sample_html)
+
+    # The helper should return non-empty bytes starting with PDF header
+    assert isinstance(pdf_bytes, bytes)
+    assert pdf_bytes.startswith(b"%PDF")
+    assert len(pdf_bytes) > 100  # minimal reasonable size 
