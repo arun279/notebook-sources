@@ -31,6 +31,10 @@ class InMemoryRepository(AbstractRepository):
         self._refs_by_page[page.id] = []
         return page
 
+    def update_wikipedia_page(self, page: models.WikipediaPage) -> None:  # type: ignore[override]
+        assert page.id is not None
+        self._pages[page.id] = page
+
     # Reference methods
 
     def add_references(self, page: models.WikipediaPage, refs: List[models.Reference]) -> None:  # type: ignore[override]
@@ -51,4 +55,28 @@ class InMemoryRepository(AbstractRepository):
         self._references[ref.id] = ref
 
     def get_reference(self, reference_id: uuid.UUID) -> models.Reference | None:
-        return self._references.get(reference_id) 
+        return self._references.get(reference_id)
+
+    # Listing
+
+    def list_wikipedia_pages(self) -> List[models.WikipediaPage]:  # type: ignore[override]
+        return list(self._pages.values())
+
+    def delete_wikipedia_page(self, page_id: uuid.UUID) -> None:  # type: ignore[override]
+        if page_id in self._pages:
+            url = self._pages[page_id].url
+            self._pages.pop(page_id, None)
+            self._pages_by_url.pop(url, None)
+            # delete references linked
+            ref_ids = self._refs_by_page.pop(page_id, [])
+            for rid in ref_ids:
+                self._references.pop(rid, None)
+
+    def replace_references(self, page: models.WikipediaPage, refs: List[models.Reference]) -> None:  # type: ignore[override]
+        # Remove old refs
+        old_ids = self._refs_by_page.get(page.id, [])
+        for rid in old_ids:
+            self._references.pop(rid, None)
+        self._refs_by_page[page.id] = []
+        # Add new
+        self.add_references(page, refs) 

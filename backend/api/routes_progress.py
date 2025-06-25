@@ -7,6 +7,7 @@ from pathlib import Path
 import uuid
 import io
 import zipfile
+import concurrent.futures
 
 from backend.api.schemas import ProgressResponse, ReferenceProgress
 from backend.core.models import ReferenceStatus
@@ -85,11 +86,18 @@ async def download(ids: str | None = None, all: bool = False):  # noqa: D401
         abs_path = storage.root / Path(ref.pdf_path)  # type: ignore[arg-type]
         return FileResponse(abs_path, filename=f"{ref.id}.pdf", media_type="application/pdf")
 
-    # multiple – stream ZIP
+    # multiple – stream ZIP, reading files concurrently to speed-up I/O when
+    # many PDFs are requested.
+    def _read(ref):  # noqa: D401 – helper
+        return ref.id, (storage.root / Path(ref.pdf_path)).read_bytes()  # type: ignore[arg-type]
+
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        loaded = list(pool.map(_read, pdf_files))
+
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for ref in pdf_files:
-            zf.write(storage.root / Path(ref.pdf_path), arcname=f"{ref.id}.pdf")  # type: ignore[arg-type]
+        for ref_id, data in loaded:
+            zf.writestr(f"{ref_id}.pdf", data)
     zip_buffer.seek(0)
     return StreamingResponse(zip_buffer, media_type="application/zip", headers={"Content-Disposition": "attachment; filename=bundle.zip"})
 

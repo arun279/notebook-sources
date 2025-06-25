@@ -39,6 +39,9 @@ async def parse_references(req: ParseRequest, bg: BackgroundTasks) -> JobRespons
     def job() -> None:  # inner sync function executed later
         page = repo.get_wikipedia_page_by_url(req.url) or repo.create_wikipedia_page(req.url)
         refs = parser.parse(req.url)
+        if parser.last_title and not page.title:
+            page.title = parser.last_title  # type: ignore[assignment]
+            repo.update_wikipedia_page(page)
         repo.add_references(page, refs)
         job_page_map[job_id] = page.id  # type: ignore[attr-defined]
 

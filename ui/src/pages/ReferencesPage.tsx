@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import useStore from '../store';
-import { getProgress, getReferences, scrapeReferences, API_ROOT, downloadZip } from '../services/api';
+import { getProgress, getReferences, getReferencesByPage, scrapeReferences, API_ROOT, downloadZip } from '../services/api';
 import ReferenceTable from '../components/ReferenceTable';
 import ProgressModal from '../components/ProgressModal';
 
@@ -12,13 +12,14 @@ const ReferencesPage: React.FC = () => {
     selectedIds,
     clearSelection,
     setScrapeJobId,
-    scrapeJobId,
   } = useStore();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const pageId = params.get('page');
 
   useEffect(() => {
-    if (!parseJobId) navigate('/');
-  }, [parseJobId, navigate]);
+    if (!parseJobId && !pageId) navigate('/');
+  }, [parseJobId, pageId, navigate]);
 
   const progressQuery = useQuery({
     queryKey: ['progress', parseJobId],
@@ -28,13 +29,16 @@ const ReferencesPage: React.FC = () => {
   });
 
   const refsQuery = useQuery({
-    queryKey: ['references', parseJobId],
-    queryFn: () => getReferences(parseJobId!),
-    enabled: !!parseJobId,
+    queryKey: ['references', parseJobId ?? pageId],
+    queryFn: () => {
+      if (pageId) return getReferencesByPage(pageId);
+      return getReferences(parseJobId!);
+    },
+    enabled: !!parseJobId || !!pageId,
     refetchInterval: 1000,
   });
 
-  if (!parseJobId) return null;
+  if (!parseJobId && !pageId) return null;
 
   const handleScrape = async () => {
     if (selectedIds.size === 0) return;

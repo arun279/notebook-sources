@@ -8,6 +8,7 @@ from pathlib import Path
 
 from backend.api import routes_references
 from backend.api import routes_progress
+from backend.api import routes_pages
 from backend.settings import settings
 
 app = FastAPI(title="Notebook References API", version="0.1.0")
@@ -23,6 +24,7 @@ app.add_middleware(
 
 app.include_router(routes_references.router)
 app.include_router(routes_progress.router)
+app.include_router(routes_pages.router)
 
 # ---------------------------------------------------------------------------
 # Serve React SPA (built via `npm run build`)

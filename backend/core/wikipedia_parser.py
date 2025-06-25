@@ -17,6 +17,9 @@ class WikipediaParser:
 
     WIKI_MOBILE = "https://en.wikipedia.org/api/rest_v1/page/mobile-html/{}"
 
+    def __init__(self) -> None:
+        self.last_title: str | None = None
+
     def fetch_html(self, url: str) -> str:
         resp = requests.get(url, timeout=30)
         resp.raise_for_status()
@@ -26,7 +29,7 @@ class WikipediaParser:
         html = self.fetch_html(url)
         soup = BeautifulSoup(html, "html.parser")
         title_tag = soup.find("title")
-        _title = title_tag.get_text(strip=True) if title_tag else None
+        self.last_title = title_tag.get_text(strip=True) if title_tag else None
 
         # Very naive extraction: find all <cite class="citation"> then get the <a> inside.
         references: list[models.Reference] = []

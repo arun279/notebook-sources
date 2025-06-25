@@ -46,4 +46,16 @@ class ReferenceProgress(BaseModel):
 
 class ProgressResponse(BaseModel):
     percent: float
-    items: List[ReferenceProgress] 
+    items: List[ReferenceProgress]
+
+
+# ---------------- Dashboard ----------------
+
+
+class PageSummary(BaseModel):
+    id: uuid.UUID
+    url: str
+    title: str | None = None
+    total_refs: int
+    scraped_refs: int
+    percent_scraped: float 
