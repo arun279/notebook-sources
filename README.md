@@ -33,12 +33,17 @@ Key abstractions (upgrade path ready):
 
 | Method | Path | Purpose |
 | ------ | ---- | -------- |
-| POST   | `/api/v1/references` | Parse Wikipedia article & persist references. |
-| GET    | `/api/v1/references/{job_id}` | Retrieve references once parse job complete. |
-| POST   | `/api/v1/scrape` | Scrape selected references, generate PDFs. |
-| GET    | `/api/v1/progress/{job_id}` | Poll scrape progress. |
+| POST   | `/api/v1/pages` | Submit a Wikipedia URL & start reference parsing job (returns `job_id`). |
+| GET    | `/api/v1/pages` | List stored pages with summary counts (`refreshing` flag). |
+| PATCH  | `/api/v1/pages/{page_id}` | Rename a page. |
+| POST   | `/api/v1/pages/{page_id}/refresh` | Re‐parse a page (non-blocking, UI shows pulse while `refreshing=true`). |
+| DELETE | `/api/v1/pages/{page_id}` | Delete a page and its references. |
+| GET    | `/api/v1/pages/{page_id}/download` | Download all scraped PDFs for a page (ZIP). |
+| GET    | `/api/v1/pages/{page_id}/references` | Return the reference list for a page. |
+| POST   | `/api/v1/scrape` | Scrape selected references concurrently, generate PDFs. |
+| GET    | `/api/v1/progress/{job_id}` | Poll scrape progress (or consume WS). |
 | WS     | `/api/v1/ws/progress/{job_id}` | Real-time scrape events. |
-| GET    | `/api/v1/download` | Download single PDF (`?ids=`) or ZIP (`?all=true`). |
+| GET    | `/api/v1/download` | Download arbitrary PDFs (`?ids=`) or ZIP (`?ids=,`). |
 
 `openapi.yaml` is derived from these routes; Swagger UI available at
 `http://localhost:8000/docs` when the container is running.
@@ -133,7 +138,15 @@ the spec.
 
 ---
 
-## 6  Future upgrades
+## 6 TODOs
+
+- [ ] Add testing for the UI
+- [ ] implement scraping to be more robust
+- [ ] add a date range filter to the references
+
+---
+
+## 7  Future upgrades
 
 Thanks to the adapter pattern, moving to Postgres + Celery + S3 only requires:
 
@@ -142,7 +155,7 @@ Thanks to the adapter pattern, moving to Postgres + Celery + S3 only requires:
 
 ---
 
-## 7  Troubleshooting
+## 8  Troubleshooting
 
 * **Unable to open SQLite file** – ensure the `/data` directory is writable or
   override `DATABASE_URL=sqlite:///./local.db`.
