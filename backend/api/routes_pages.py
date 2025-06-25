@@ -20,6 +20,10 @@ else:
 
 repo = _Repo()
 
+# Track pages that are currently being refreshed so that the UI can display
+# progress even when the reference counts remain the same after a refresh.
+page_refreshing: set[uuid.UUID] = set()
+
 router = APIRouter(prefix="/api/v1", tags=["pages"])
 
 storage = LocalFileStorage()
@@ -41,6 +45,7 @@ async def list_pages() -> List[PageSummary]:  # noqa: D401
             total_refs=total,
             scraped_refs=scraped,
             percent_scraped=percent,
+            refreshing=p.id in page_refreshing,
         ))
     return summaries
 
@@ -103,6 +108,7 @@ async def rename_page(page_id: uuid.UUID, body: _RenameReq):  # noqa: D401
         total_refs=total,
         scraped_refs=scraped,
         percent_scraped=(scraped / total * 100) if total else 0.0,
+        refreshing=page.id in page_refreshing,
     )
 
 
@@ -124,7 +130,13 @@ async def refresh_page(page_id: uuid.UUID, bg: BackgroundTasks) -> PageSummary: 
             repo.update_wikipedia_page(page)
         repo.replace_references(page, new_refs)
 
+        # Refresh finished – clear flag so the next /pages poll stops pulsing
+        page_refreshing.discard(page.id)
+
     InlineTaskQueue(bg).enqueue(job)
+
+    # Mark as refreshing immediately so UI provides instant feedback
+    page_refreshing.add(page.id)
 
     # Return immediate summary (old counts) so UI can keep going
     refs = repo.list_references(page_id)
@@ -137,6 +149,7 @@ async def refresh_page(page_id: uuid.UUID, bg: BackgroundTasks) -> PageSummary: 
         total_refs=total,
         scraped_refs=scraped,
         percent_scraped=(scraped / total * 100) if total else 0.0,
+        refreshing=True,  # optimistic until first poll returns updated flag
     )
 
 

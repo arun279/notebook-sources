@@ -79,41 +79,64 @@ async def scrape_references(req: ScrapeRequest, bg: BackgroundTasks) -> JobRespo
             first_ref = repo.get_reference(req.reference_ids[0])
             if first_ref is not None:
                 job_page_map[job_id] = first_ref.wiki_page_id  # type: ignore[arg-type]
+
+        import asyncio
+        # We'll submit scrape tasks to a thread pool so that multiple
+        # references can be processed concurrently according to the
+        # MAX_CONCURRENT_SCRAPES setting.
+
+        import concurrent.futures
+
+        # First, mark all selected refs as scraping and broadcast. Doing
+        # this upfront gives immediate UI feedback for *every* row rather
+        # than waiting for sequential updates.
         for ref_id in req.reference_ids:
-            ref = repo.get_reference(ref_id)
-            if ref is None:
+            r = repo.get_reference(ref_id)
+            if r is None:
                 continue
-
-            # mark as "scraping" before starting
-            ref.status = ReferenceStatus.scraping
-            repo.update_reference(ref)
-            # broadcast
-            import asyncio, uuid as _uuid
-
+            r.status = ReferenceStatus.scraping
+            repo.update_reference(r)
             asyncio.run(ws_manager.broadcast(job_id, {
                 "event": "progress_update",
                 "reference_id": str(ref_id),
                 "status": "scraping",
             }))
 
-            success, error_msg = scraper.scrape(ref, req.aggressive)
-            repo.update_reference(ref)
+        def _do_scrape(rid: uuid.UUID):  # noqa: D401
+            ref_obj = repo.get_reference(rid)
+            if ref_obj is None:
+                return rid, False, "not-found"
+            success, err = scraper.scrape(ref_obj, req.aggressive)
+            repo.update_reference(ref_obj)
+            return rid, success, err
 
-            asyncio.run(ws_manager.broadcast(job_id, {
-                "event": "reference_done",
-                "reference_id": str(ref_id),
-                "status": ref.status.value,
-                "error": error_msg,
-            }))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=settings.max_concurrent_scrapes) as pool:
+            futures = {pool.submit(_do_scrape, rid): rid for rid in req.reference_ids}
+            for fut in concurrent.futures.as_completed(futures):
+                rid = futures[fut]
+                try:
+                    _, success, err_msg = fut.result()
+                except Exception as exc:
+                    success = False
+                    err_msg = str(exc)
+
+                status_val = "scraped" if success else "failed"
+                asyncio.run(ws_manager.broadcast(job_id, {
+                    "event": "reference_done",
+                    "reference_id": str(rid),
+                    "status": status_val,
+                    "error": err_msg,
+                }))
 
         # Job done summary
-        page_id = job_page_map.get(_uuid.UUID(str(job_id)))
+        page_id = job_page_map.get(job_id)
         if page_id:
-            refs = repo.list_references(page_id)
-            successes = sum(1 for r in refs if r.status == ReferenceStatus.scraped)
-            failures = sum(1 for r in refs if r.status == ReferenceStatus.failed)
+            refs_local = repo.list_references(page_id)
+            successes = sum(1 for r in refs_local if r.status == ReferenceStatus.scraped)
+            failures = sum(1 for r in refs_local if r.status == ReferenceStatus.failed)
         else:
             successes = failures = 0
+
         asyncio.run(ws_manager.broadcast(job_id, {
             "event": "job_complete",
             "job_id": str(job_id),

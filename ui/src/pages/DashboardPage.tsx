@@ -42,42 +42,23 @@ const DashboardPage: React.FC = () => {
   const [draftTitle, setDraftTitle] = useState('');
 
   /**
-   * Tracks the ids of pages that are currently being refreshed so that we can
-   * apply the row-level pulse animation.  We also need to know the counts that
-   * were returned *before* the refresh call was issued.
+   * Track pages we just triggered refresh for to get instant UI feedback.
+   * The server also exposes `refreshing` so we merge the two.
    */
   const [refreshingIds, setRefreshing] = useState<Set<string>>(new Set());
-  const refreshBaselines = React.useRef<Record<string, { total: number; scraped: number }>>({});
 
   const addPage = (e: React.FormEvent) => {
     e.preventDefault();
     if (url) parseMut.mutate(url);
   };
 
-  /* ---------------------------------------------------------------------------
-   * Keep the pulse animation until the background parse job updates the page
-   * entry.  We consider the refresh completed when either the *total_refs* or
-   * *scraped_refs* figure differs from what we had right before the refresh
-   * call was issued.
-   * ------------------------------------------------------------------------- */
+  // Clear local refreshing set as soon as backend flag turns false
   useEffect(() => {
     if (!pagesQuery.data) return;
-
     setRefreshing(prev => {
       const next = new Set(prev);
       pagesQuery.data.forEach(p => {
-        if (next.has(p.id)) {
-          const baseline = refreshBaselines.current[p.id];
-          // Unknown baseline → keep the pulse (should not happen)
-          if (!baseline) return;
-
-          const changed =
-            p.total_refs !== baseline.total || p.scraped_refs !== baseline.scraped;
-          if (changed) {
-            next.delete(p.id);
-            delete refreshBaselines.current[p.id];
-          }
-        }
+        if (!p.refreshing) next.delete(p.id);
       });
       return next;
     });
@@ -115,7 +96,7 @@ const DashboardPage: React.FC = () => {
           </thead>
           <tbody>
             {pagesQuery.data.map(p => {
-              const isRefreshing = refreshingIds.has(p.id);
+              const isRefreshing = p.refreshing || refreshingIds.has(p.id);
               const rowCls = isRefreshing ? 'animate-pulse bg-blue-50 dark:bg-blue-900' : '';
               return (
                 <tr key={p.id} className={`border-t ${rowCls}`}>
@@ -142,7 +123,16 @@ const DashboardPage: React.FC = () => {
                       </Link>
                     )}
                   </td>
-                  <td className="p-2 max-w-xs truncate" title={p.url}> {p.url}</td>
+                  <td className="p-2 max-w-xs truncate" title={p.url}>
+                    <a
+                      href={p.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary underline"
+                    >
+                      {p.url}
+                    </a>
+                  </td>
                   <td className="p-2">{p.total_refs}</td>
                   <td className="p-2">{p.scraped_refs}</td>
                   <td className="p-2">{p.percent_scraped.toFixed(0)}%</td>
@@ -152,13 +142,6 @@ const DashboardPage: React.FC = () => {
                       disabled={isRefreshing}
                       className={isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}
                       onClick={() => {
-                        // Record baseline counts so we know when something has
-                        // actually changed.
-                        refreshBaselines.current[p.id] = {
-                          total: p.total_refs,
-                          scraped: p.scraped_refs,
-                        };
-
                         setRefreshing(prev => new Set(prev).add(p.id));
                         refreshMut.mutate(p.id);
                       }}

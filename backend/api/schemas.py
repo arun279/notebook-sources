@@ -58,4 +58,5 @@ class PageSummary(BaseModel):
     title: str | None = None
     total_refs: int
     scraped_refs: int
-    percent_scraped: float 
+    percent_scraped: float
+    refreshing: bool = False 

@@ -15,6 +15,7 @@ export interface PageSummary {
   total_refs: number;
   scraped_refs: number;
   percent_scraped: number;
+  refreshing: boolean;
 }
 
 async function jsonFetch<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
