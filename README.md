@@ -48,12 +48,20 @@ Key abstractions (upgrade path ready):
 ## 3  Running locally with Docker
 
 ```bash
-# Build the Playwright-based image (includes Chromium)
-docker compose build api
+# Build images (backend, UI & tests)
+docker compose build
 
-# Launch the API on http://localhost:8000
-docker compose up api
+# Launch API (http://localhost:8000) **and** UI (http://localhost:3000)
+docker compose up
 ```
+
+The stack now includes three services:
+
+* **api** – FastAPI backend on port 8000.
+* **ui** – Vite dev server with React SPA on port 3000 (hot-reload enabled via bind-mount).
+* **tests** – On-demand PyTest execution (`docker compose run --rm tests`).
+
+The UI automatically proxies API requests to `http://localhost:8000` through the `VITE_API_ROOT` env variable set in *docker-compose.yml*.
 
 Environment defaults (see `backend/settings.py`):
 
