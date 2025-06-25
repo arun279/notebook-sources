@@ -77,7 +77,13 @@ async def download(ids: str | None = None, all: bool = False):  # noqa: D401
         ref_ids = [uuid.UUID(i) for i in ids.split(",")]
         references = [repo.get_reference(rid) for rid in ref_ids if repo.get_reference(rid)]
 
-    pdf_files = [r for r in references if r.pdf_path and storage.exists(Path(r.pdf_path))]  # type: ignore[arg-type]
+    # Remove duplicate IDs to avoid duplicate filenames in the ZIP which triggers a warning.
+    unique_refs = {}
+    for r in references:
+        if r.id not in unique_refs and r.pdf_path and storage.exists(Path(r.pdf_path)):  # type: ignore[arg-type]
+            unique_refs[r.id] = r
+
+    pdf_files = list(unique_refs.values())
     if not pdf_files:
         raise HTTPException(status_code=404, detail="No PDFs available for given IDs")
 

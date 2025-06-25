@@ -27,7 +27,7 @@ class ReferenceDTO(BaseModel):
     suspected_paywall: bool = False
     status: ReferenceStatus = Field(default=ReferenceStatus.pending)
 
-    model_config = ConfigDict(from_attributes=True, json_encoders={ReferenceStatus: lambda v: v.value})
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ReferencesResponse(BaseModel):
@@ -42,6 +42,8 @@ class ScrapeRequest(BaseModel):
 class ReferenceProgress(BaseModel):
     reference_id: uuid.UUID
     status: ReferenceStatus
+
+    model_config = ConfigDict(json_encoders=None)  # Enum serialises as str by default
 
 
 class ProgressResponse(BaseModel):
