@@ -47,4 +47,23 @@ def test_parser_basic(count):
     parser = WikipediaParser()
     parser.fetch_html = lambda _url: html  # type: ignore
     refs = parser.parse("https://dummy")
-    assert len(refs) == count 
+    assert len(refs) == count
+
+
+def test_parser_no_link_in_cite():
+    """Verify that a cite without a link is skipped."""
+    html = '<html><body><cite class="citation">No link here</cite></body></html>'
+    parser = WikipediaParser()
+    parser.fetch_html = lambda _url: html
+    refs = parser.parse("https://dummy")
+    assert len(refs) == 0
+
+
+def test_parser_no_title():
+    """Verify that parsing proceeds without a title tag."""
+    html = '<html><body><cite class="citation"><a href="https://example.com">a</a></cite></body></html>'
+    parser = WikipediaParser()
+    parser.fetch_html = lambda _url: html
+    refs = parser.parse("https://dummy")
+    assert len(refs) == 1
+    assert parser.last_title is None 
