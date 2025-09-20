@@ -27,4 +27,9 @@ class LocalFileStorage(AbstractStorage):
         return self._abs(relative_path).open(mode)
 
     def exists(self, relative_path: Path) -> bool:
-        return self._abs(relative_path).exists() 
+        return self._abs(relative_path).exists()
+
+    def delete(self, relative_path: Path) -> None:
+        abs_path = self._abs(relative_path)
+        if abs_path.exists():
+            abs_path.unlink() 

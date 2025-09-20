@@ -18,4 +18,8 @@ class AbstractStorage(abc.ABC):
 
     @abc.abstractmethod
     def exists(self, relative_path: Path) -> bool:  # noqa: D401
+        ...
+
+    @abc.abstractmethod
+    def delete(self, relative_path: Path) -> None:  # noqa: D401
         ... 

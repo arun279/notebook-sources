@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from typing import Dict
+from pathlib import Path
 
 from backend.api.schemas import (JobResponse, ParseRequest, ReferencesResponse,
                                  ReferenceDTO, ScrapeRequest)
@@ -10,6 +11,7 @@ from backend.core.wikipedia_parser import WikipediaParser
 from backend.settings import settings
 from backend.infra.tasks.inline import InlineTaskQueue
 from backend.core.models import ReferenceStatus
+from backend.infra.storage.local_fs import LocalFileStorage
 
 # Repository backend choice – SQLite file or in-memory
 if str(settings.database_url).startswith("sqlite"):
@@ -21,6 +23,7 @@ else:
 
     repo = InMemoryRepository()
 
+storage = LocalFileStorage()
 parser = WikipediaParser()
 
 # In-process mapping of job_id -> page_id until a proper Job table is added.
@@ -145,4 +148,28 @@ async def scrape_references(req: ScrapeRequest, bg: BackgroundTasks) -> JobRespo
         }))
 
     InlineTaskQueue(bg).enqueue(job)
-    return JobResponse(job_id=job_id) 
+    return JobResponse(job_id=job_id)
+
+
+@router.delete("/references/{reference_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_reference_status(reference_id: uuid.UUID):
+    """Delete a reference's scraped artifacts and reset its status to pending."""
+    ref = repo.get_reference(reference_id)
+    if ref is None:
+        raise HTTPException(status_code=404, detail="Reference not found")
+
+    if ref.pdf_path:
+        storage.delete(Path(ref.pdf_path))
+    if ref.html_path:
+        storage.delete(Path(ref.html_path))
+
+    ref.status = ReferenceStatus.pending
+    ref.pdf_path = None
+    ref.html_path = None
+    ref.archive_source = None
+    ref.archive_timestamp = None
+    ref.error = None
+    ref.scraped_at = None
+
+    repo.update_reference(ref)
+    return
