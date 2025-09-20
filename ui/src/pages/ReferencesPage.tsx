@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import useStore from '../store';
-import { getProgress, getReferences, getReferencesByPage, scrapeReferences, API_ROOT, downloadZip } from '../services/api';
+import { getProgress, getReferences, getReferencesByPage, scrapeReferences, API_ROOT, downloadZip, resetReference } from '../services/api';
 import ReferenceTable from '../components/ReferenceTable';
 import ProgressModal from '../components/ProgressModal';
 
@@ -58,6 +58,13 @@ const ReferencesPage: React.FC = () => {
     },
     enabled: !!parseJobId || !!pageId,
     refetchInterval: 1000,
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: (id: string) => resetReference(id),
+    onSuccess: () => {
+      refsQuery.refetch();
+    },
   });
 
   // -----------------------------------------------------------------
@@ -152,9 +159,9 @@ const ReferencesPage: React.FC = () => {
           </button>
         </div>
       )}
-      {refsQuery.data && <ReferenceTable references={filteredRefs} />}
+      {refsQuery.data && <ReferenceTable references={filteredRefs} onReset={resetMutation.mutate} />}
     </div>
   );
 };
 
-export default ReferencesPage; 
+export default ReferencesPage;

@@ -5,6 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    watch: {
+      usePolling: true,
+    },
   },
   build: {
     outDir: 'dist',

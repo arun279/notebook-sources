@@ -5,6 +5,7 @@ import { downloadPdf } from '../services/api';
 
 interface Props {
   references: Reference[];
+  onReset: (id: string) => void;
 }
 
 function getDomain(url: string): string {
@@ -15,7 +16,7 @@ function getDomain(url: string): string {
   }
 }
 
-const ReferenceTable: React.FC<Props> = ({ references }) => {
+const ReferenceTable: React.FC<Props> = ({ references, onReset }) => {
   const { selectedIds, toggleSelection, clearSelection } = useStore();
   if (!references.length) {
     return <p>No references found.</p>;
@@ -49,7 +50,12 @@ const ReferenceTable: React.FC<Props> = ({ references }) => {
       <tbody>
         {references.map(ref => {
           const isScraping = ref.status === 'scraping';
-          const rowClass = isScraping ? 'animate-pulse bg-yellow-50 dark:bg-yellow-900' : '';
+          const isSelected = selectedIds.has(ref.id);
+          const rowClass = isScraping
+            ? 'animate-pulse bg-yellow-50 dark:bg-yellow-900'
+            : isSelected
+            ? 'bg-blue-50 dark:bg-blue-900/50'
+            : '';
           return (
             <tr key={ref.id} className={`border-t ${rowClass}`}>
               <td className="p-2 w-8 text-center">
@@ -69,13 +75,22 @@ const ReferenceTable: React.FC<Props> = ({ references }) => {
               <td className="p-2 capitalize">
                 {ref.status}
                 {ref.status === 'scraped' && (
-                  <button
-                    className="ml-2 text-primary hover:text-primary/80"
-                    onClick={() => downloadPdf(ref.id)}
-                    title="Download PDF"
-                  >
-                    ⬇️
-                  </button>
+                  <>
+                    <button
+                      className="ml-2 text-primary hover:text-primary/80"
+                      onClick={() => downloadPdf(ref.id)}
+                      title="Download PDF"
+                    >
+                      ⬇️
+                    </button>
+                    <button
+                      className="ml-2 text-primary hover:text-primary/80"
+                      onClick={() => onReset(ref.id)}
+                      title="Reset"
+                    >
+                      🔄
+                    </button>
+                  </>
                 )}
               </td>
             </tr>
@@ -86,4 +101,4 @@ const ReferenceTable: React.FC<Props> = ({ references }) => {
   );
 };
 
-export default ReferenceTable; 
+export default ReferenceTable;

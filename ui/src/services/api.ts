@@ -33,7 +33,14 @@ export async function parseReferences(url: string) {
 }
 
 export async function getProgress(jobId: string) {
-  return jsonFetch<{ percent: number }>(`${API_ROOT}/api/v1/progress/${jobId}`);
+  try {
+    return await jsonFetch<{ percent: number }>(`${API_ROOT}/api/v1/progress/${jobId}`);
+  } catch (err: any) {
+    if (err instanceof Error && /404/.test(err.message)) {
+      return null; // not ready yet
+    }
+    throw err;
+  }
 }
 
 export async function getReferences(jobId: string) {
@@ -53,6 +60,10 @@ export async function scrapeReferences(referenceIds: string[], aggressive: boole
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reference_ids: referenceIds, aggressive }),
   });
+}
+
+export async function resetReference(referenceId: string) {
+  return fetch(`${API_ROOT}/api/v1/references/${referenceId}`, { method: 'DELETE' });
 }
 
 export function downloadZipAll() {
