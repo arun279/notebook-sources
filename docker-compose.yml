@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app/backend
+      - ./data:/data
+    environment:
+      - ENV=dev
+      - DATA_DIR=/data
+  tests:
+    build: .
+    command: pytest -q --cov=backend tests
+    volumes:
+      - .:/app           # project root – includes backend + tests 
+  ui:
+    build:
+      context: ./ui
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./ui:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_ROOT=http://localhost:8000
+    depends_on:
+      - api 
