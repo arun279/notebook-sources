@@ -10,6 +10,7 @@ exercised end-to-end.  Swapping the implementation later will not affect the
 public interface.
 """
 
+import re
 from pathlib import Path
 
 from fpdf import FPDF  # type: ignore
@@ -60,10 +61,8 @@ class PDFService:  # noqa: WPS110 – domain term
         pdf.add_page()
         pdf.set_font("Arial", size=11)
         # Naively strip tags – real renderer will preserve styling
-        import re
-
         text_content = re.sub(r"<[^>]+>", "", html)[:4000]
-        pdf.multi_cell(0, 10, txt=text_content)
+        pdf.cell(0, 10, txt=text_content)
         # Return PDF bytes in-memory (latin-1 is FPDF internal default)
         raw = pdf.output(dest="S")
         if isinstance(raw, str):
