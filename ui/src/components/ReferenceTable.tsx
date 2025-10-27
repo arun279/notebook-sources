@@ -57,18 +57,31 @@ const ReferenceTable: React.FC<Props> = ({ references, onReset }) => {
             ? 'bg-blue-50 dark:bg-blue-900/50'
             : '';
           return (
-            <tr key={ref.id} className={`border-t ${rowClass}`}>
+            <tr
+              key={ref.id}
+              className={`border-t ${rowClass} cursor-pointer`}
+              onClick={() => toggleSelection(ref.id)}
+            >
               <td className="p-2 w-8 text-center">
                 <input
                   type="checkbox"
                   checked={selectedIds.has(ref.id)}
-                  onChange={() => toggleSelection(ref.id)}
+                  onChange={e => {
+                    e.stopPropagation();
+                    toggleSelection(ref.id);
+                  }}
                 />
               </td>
               <td className="p-2 max-w-xs truncate" title={ref.title}>{ref.title}</td>
               <td className="p-2 max-w-xs truncate" title={getDomain(ref.url)}>{getDomain(ref.url)}</td>
               <td className="p-2 max-w-xs truncate" title={ref.url}>
-                <a href={ref.url} target="_blank" rel="noreferrer" className="text-primary underline">
+                <a
+                  href={ref.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary underline"
+                  onClick={e => e.stopPropagation()}
+                >
                   {ref.url}
                 </a>
               </td>
@@ -78,14 +91,20 @@ const ReferenceTable: React.FC<Props> = ({ references, onReset }) => {
                   <>
                     <button
                       className="ml-2 text-primary hover:text-primary/80"
-                      onClick={() => downloadPdf(ref.id)}
+                      onClick={e => {
+                        e.stopPropagation();
+                        downloadPdf(ref.id);
+                      }}
                       title="Download PDF"
                     >
                       ⬇️
                     </button>
                     <button
                       className="ml-2 text-primary hover:text-primary/80"
-                      onClick={() => onReset(ref.id)}
+                      onClick={e => {
+                        e.stopPropagation();
+                        onReset(ref.id);
+                      }}
                       title="Reset"
                     >
                       🔄
