@@ -1,7 +1,8 @@
-from __future__ import annotations
-
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+from PyPDF2 import PdfReader
 
 from backend.core.pdf_service import PDFService
 from backend.infra.storage.local_fs import LocalFileStorage
@@ -59,12 +60,12 @@ def test_playwright_fallback_to_fpdf_on_error(mock_sync_playwright, tmp_path):
     # Assert: Ensure the placeholder PDF was created
     assert pdf_path.exists()
     assert pdf_path.stat().st_size > 100
-    # Verify it contains the fallback content (simplified check)
-    # A more robust check might involve a PDF parsing library
+    # Verify it contains the fallback content
     with open(pdf_path, "rb") as f:
-        pdf_content = f.read()
-    assert b"Fallback content" in pdf_content
-
+        reader = PdfReader(f)
+        page = reader.pages[0]
+        text = page.extract_text()
+    assert "Fallback content" in text
 
 def test_placeholder_renderer_string_return():
     """Verify the placeholder renderer handles FPDF's string output."""
@@ -81,3 +82,4 @@ def test_placeholder_renderer_string_return():
         # Assert
         assert isinstance(pdf_bytes, bytes)
         assert pdf_bytes == "pdf_content_string".encode("latin1")
+
