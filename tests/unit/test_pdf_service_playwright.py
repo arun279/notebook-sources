@@ -2,7 +2,7 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 from backend.core.pdf_service import PDFService
 from backend.infra.storage.local_fs import LocalFileStorage

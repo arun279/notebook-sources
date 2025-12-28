@@ -14,7 +14,7 @@ def test_references_round_trip(monkeypatch):
 
     # Patch WikipediaParser.fetch_html to produce deterministic HTML with 2 cites
     sample_html = (
-        '<title>Dummy Title</title>'
+        '<title>Dummy Title - Wikipedia</title>'
         '<cite class="citation"><a href="https://a.com">A</a></cite>'
         '<cite class="citation"><a href="https://b.com">B</a></cite>'
     )
