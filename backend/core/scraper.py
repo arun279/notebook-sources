@@ -11,7 +11,7 @@ responsible for mutating the :pyclass:`backend.core.models.Reference` instance.
 
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 
 import requests
 
@@ -21,14 +21,17 @@ from backend.core import models
 from backend.infra.storage.local_fs import LocalFileStorage
 from backend.settings import settings
 
+if TYPE_CHECKING:
+    from backend.core.browser_pool import AsyncBrowserPool
+
 
 class Scraper:  # noqa: WPS110 – domain term
     """Download a reference, render a PDF, and persist artefacts."""
 
-    def __init__(self, job_id: str) -> None:  # noqa: D401
+    def __init__(self, job_id: str, browser_pool: AsyncBrowserPool | None = None) -> None:  # noqa: D401
         self._storage = LocalFileStorage()  # root = settings.data_dir by default
         self._resolver = ArchiveResolver()
-        self._pdf = PDFService(self._storage)
+        self._pdf = PDFService(self._storage, browser_pool)
         self._job_root = Path("jobs") / job_id
 
     # ------------------------------------------------------------------

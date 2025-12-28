@@ -6,7 +6,7 @@ from typing import Dict
 from pathlib import Path
 
 from backend.api.schemas import (JobResponse, ParseRequest, ReferencesResponse,
-                                 ReferenceDTO, ScrapeRequest)
+                                ReferenceDTO, ScrapeRequest)
 from backend.core.wikipedia_parser import WikipediaParser
 from backend.settings import settings
 from backend.infra.tasks.inline import InlineTaskQueue
@@ -81,8 +81,10 @@ async def scrape_references(req: ScrapeRequest, bg: BackgroundTasks) -> JobRespo
     def job() -> None:
         from backend.core.scraper import Scraper  # local import to avoid heavy deps at startup
         from backend.api.routes_progress import ws_manager  # for broadcast
+        from backend.main import browser_pool  # global browser pool
+        from anyio import from_thread
 
-        scraper = Scraper(str(job_id))
+        scraper = Scraper(str(job_id), browser_pool)
         # Map this scrape job to the wiki page id (first reference)
         if req.reference_ids:
             first_ref = repo.get_reference(req.reference_ids[0])
@@ -105,11 +107,11 @@ async def scrape_references(req: ScrapeRequest, bg: BackgroundTasks) -> JobRespo
                 continue
             r.status = ReferenceStatus.scraping
             repo.update_reference(r)
-            asyncio.run(ws_manager.broadcast(job_id, {
+            from_thread.run(ws_manager.broadcast, job_id, {
                 "event": "progress_update",
                 "reference_id": str(ref_id),
                 "status": "scraping",
-            }))
+            })
 
         def _do_scrape(rid: uuid.UUID):  # noqa: D401
             ref_obj = repo.get_reference(rid)
@@ -130,12 +132,12 @@ async def scrape_references(req: ScrapeRequest, bg: BackgroundTasks) -> JobRespo
                     err_msg = str(exc)
 
                 status_val = "scraped" if success else "failed"
-                asyncio.run(ws_manager.broadcast(job_id, {
+                from_thread.run(ws_manager.broadcast, job_id, {
                     "event": "reference_done",
                     "reference_id": str(rid),
                     "status": status_val,
                     "error": err_msg,
-                }))
+                })
 
         # Job done summary
         page_id = job_page_map.get(job_id)
@@ -146,12 +148,12 @@ async def scrape_references(req: ScrapeRequest, bg: BackgroundTasks) -> JobRespo
         else:
             successes = failures = 0
 
-        asyncio.run(ws_manager.broadcast(job_id, {
+        from_thread.run(ws_manager.broadcast, job_id, {
             "event": "job_complete",
             "job_id": str(job_id),
             "successes": successes,
             "failures": failures,
-        }))
+        })
 
     InlineTaskQueue(bg).enqueue(job)
     return JobResponse(job_id=job_id)

@@ -75,29 +75,45 @@ def test_archive_resolver_no_snapshot(monkeypatch):
     assert outcome.reason == "no-snapshot"
 
 
-def test_archive_resolver_aggressive_timeout(monkeypatch):
-    """Aggressive mode returns a *timeout* failure when no snapshot becomes available."""
+def test_archive_resolver_aggressive_triggers_save(monkeypatch):
+    """Aggressive mode triggers a save request and returns immediately without blocking."""
+    save_triggered = {"called": False}
 
-    # Stub requests.get to always report *no snapshot* and accept save requests.
     def fake_get(url: str, *args, **kwargs):  # noqa: D401
+        # Track if save endpoint was called
+        if url.startswith("https://web.archive.org/save/"):
+            save_triggered["called"] = True
+            return _FakeResponse(WAYBACK_AVAIL, has_snapshot=False)
         return _FakeResponse(url, has_snapshot=False)
 
     monkeypatch.setattr(requests, "get", fake_get)
 
-    # Speed-up loop inside aggressive mode – skip real sleep and elapse time quickly.
-    monkeypatch.setattr("backend.core.archive_resolver.time.sleep", lambda _s: None)
+    resolver = ArchiveResolver()
+    outcome = resolver.resolve("https://no-snapshot.com", aggressive=True)
 
-    # Controlled time progress: first call = 0, then +61 seconds each invocation.
-    ticks = {"now": 0}
+    # Should return immediately with save-triggered reason
+    assert outcome.success is False
+    assert outcome.reason == "wayback-save-triggered"
+    assert outcome.retry_after is not None
+    assert save_triggered["called"]
 
-    def fake_time():  # noqa: D401
-        ticks["now"] += 61
-        return ticks["now"]
 
-    monkeypatch.setattr("backend.core.archive_resolver.time.time", fake_time)
+def test_archive_resolver_aggressive_save_error_ignored(monkeypatch):
+    """Aggressive mode ignores errors when triggering the save request."""
+    call_count = {"value": 0}
+
+    def fake_get(url: str, *args, **kwargs):  # noqa: D401
+        call_count["value"] += 1
+        if url.startswith("https://web.archive.org/save/"):
+            raise ConnectionError("Save endpoint unavailable")
+        return _FakeResponse(url, has_snapshot=False)
+
+    monkeypatch.setattr(requests, "get", fake_get)
 
     resolver = ArchiveResolver()
-    outcome = resolver.resolve("https://timeout.com", aggressive=True)
+    outcome = resolver.resolve("https://test.com", aggressive=True)
 
+    # Should still return save-triggered even if save request failed
     assert outcome.success is False
-    assert outcome.reason == "wayback-save-timeout" 
+    assert outcome.reason == "wayback-save-triggered"
+    assert outcome.retry_after is not None 

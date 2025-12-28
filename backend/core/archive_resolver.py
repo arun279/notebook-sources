@@ -11,7 +11,7 @@ body of :pymeth:`resolve` without touching call-sites.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 import json
 import time
@@ -26,6 +26,7 @@ class ArchiveOutcome:
     source: Optional[str] = None
     timestamp: Optional[datetime] = None
     reason: Optional[str] = None
+    retry_after: Optional[datetime] = None  # Indicates when to retry (aggressive mode)
 
 
 WAYBACK_AVAIL = "https://archive.org/wayback/available"
@@ -46,23 +47,28 @@ class ArchiveResolver:  # noqa: WPS110 – domain term
         """Attempt to fetch a snapshot HTML for *url*.
 
         When ``aggressive`` is True and no snapshot is found, the resolver will
-        trigger a save request and poll Wayback for up to 2 minutes.
+        trigger a save request and return immediately with retry_after set.
+        The caller can retry later if needed, but we don't block the thread.
         """
         try:
             outcome = self._check_availability(url, timeout)
             if outcome.success or not aggressive:
                 return outcome
 
-            # Aggressive mode – ask Wayback to save then poll.
+            # Aggressive mode: trigger save, return immediately
+            # Don't block the thread waiting for Wayback to process
             save_url = f"https://web.archive.org/save/{url}"
-            requests.get(save_url, timeout=timeout)  # fire-and-forget trigger
-            deadline = time.time() + 120  # 2 min budget
-            while time.time() < deadline:
-                time.sleep(15)
-                outcome = self._check_availability(url, timeout)
-                if outcome.success:
-                    return outcome
-            return ArchiveOutcome(success=False, reason="wayback-save-timeout")
+            try:
+                requests.get(save_url, timeout=timeout)  # Fire-and-forget trigger
+            except Exception:
+                pass  # Best-effort save trigger - don't fail if this errors
+
+            # Return unsuccessful outcome with retry_after hint
+            return ArchiveOutcome(
+                success=False,
+                reason="wayback-save-triggered",
+                retry_after=datetime.utcnow() + timedelta(minutes=2),
+            )
         except Exception as exc:  # noqa: WPS429 – broad except to shield callers
             return ArchiveOutcome(success=False, reason=str(exc))
 
@@ -88,4 +94,4 @@ class ArchiveResolver:  # noqa: WPS110 – domain term
             html=html_resp.text,
             source="wayback",
             timestamp=None if ts is None else datetime.strptime(ts, "%Y%m%d%H%M%S"),
-        ) 
+        )
