@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend code
 COPY backend ./backend
+COPY tests ./tests
 COPY backend/main.py ./backend/main.py
 
 # Expose API port

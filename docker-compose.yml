@@ -14,8 +14,6 @@ services:
   tests:
     build: .
     command: pytest -q --cov=backend tests
-    volumes:
-      - .:/app           # project root – includes backend + tests 
   ui:
     build:
       context: ./ui

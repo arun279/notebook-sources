@@ -10,7 +10,10 @@ exercised end-to-end.  Swapping the implementation later will not affect the
 public interface.
 """
 
+import asyncio
+import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fpdf import FPDF  # type: ignore
 
@@ -24,12 +27,16 @@ except ImportError:  # pragma: no cover – running in minimal env without Playw
 
 from backend.infra.storage.base import AbstractStorage
 
+if TYPE_CHECKING:
+    from backend.core.browser_pool import AsyncBrowserPool
+
 
 class PDFService:  # noqa: WPS110 – domain term
     """Generate PDFs and persist them via :pyclass:`AbstractStorage`."""
 
-    def __init__(self, storage: AbstractStorage) -> None:  # noqa: D401
+    def __init__(self, storage: AbstractStorage, browser_pool: AsyncBrowserPool | None = None) -> None:  # noqa: D401
         self._storage = storage
+        self._pool = browser_pool
 
     # ---------------------------------------------------------------------
     # Public helpers
@@ -60,10 +67,8 @@ class PDFService:  # noqa: WPS110 – domain term
         pdf.add_page()
         pdf.set_font("Arial", size=11)
         # Naively strip tags – real renderer will preserve styling
-        import re
-
         text_content = re.sub(r"<[^>]+>", "", html)[:4000]
-        pdf.multi_cell(0, 10, txt=text_content)
+        pdf.cell(0, 10, txt=text_content)
         # Return PDF bytes in-memory (latin-1 is FPDF internal default)
         raw = pdf.output(dest="S")
         if isinstance(raw, str):
@@ -79,18 +84,44 @@ class PDFService:  # noqa: WPS110 – domain term
         tmp_html_path = rel_path.with_suffix(".html")
         self._storage.save_bytes(tmp_html_path, html.encode("utf-8"))
 
-        with sync_playwright() as p:
-            browser = p.chromium.launch(args=["--no-sandbox"])
-            page = browser.new_page()
-            page.goto(f"file://{self._storage.root / tmp_html_path}")
-            # Use sensible defaults from project plan
-            pdf_bytes = page.pdf(
-                format="A4",
-                margin={"top": "10mm", "bottom": "10mm", "left": "12mm", "right": "12mm"},
-                print_background=True,
-                prefer_css_page_size=False,
-            )
-            browser.close()
+        if self._pool:
+            # Use pooled browser - run async code in sync context (from thread pool)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                pdf_bytes = loop.run_until_complete(self._render_with_pool(tmp_html_path))
+            finally:
+                loop.close()
+        else:
+            # Fallback: launch browser per-request (existing behavior)
+            # This path is used in tests or if pool isn't configured
+            with sync_playwright() as p:
+                browser = p.chromium.launch(args=["--no-sandbox"])
+                page = browser.new_page()
+                page.goto(f"file://{self._storage.root / tmp_html_path}")
+                pdf_bytes = page.pdf(
+                    format="A4",
+                    margin={"top": "10mm", "bottom": "10mm", "left": "12mm", "right": "12mm"},
+                    print_background=True,
+                    prefer_css_page_size=False,
+                )
+                browser.close()
 
         # Save bytes via storage adapter so path layout is consistent.
-        return self._storage.save_bytes(rel_path, pdf_bytes) 
+        return self._storage.save_bytes(rel_path, pdf_bytes)
+
+    async def _render_with_pool(self, tmp_html_path: Path) -> bytes:
+        """Async helper to render PDF using the async browser pool."""
+        async with self._pool.acquire() as browser:
+            page = await browser.new_page()
+            try:
+                await page.goto(f"file://{self._storage.root / tmp_html_path}")
+                pdf_bytes = await page.pdf(
+                    format="A4",
+                    margin={"top": "10mm", "bottom": "10mm", "left": "12mm", "right": "12mm"},
+                    print_background=True,
+                    prefer_css_page_size=False,
+                )
+                return pdf_bytes
+            finally:
+                await page.close() 

@@ -14,6 +14,7 @@ def test_references_round_trip(monkeypatch):
 
     # Patch WikipediaParser.fetch_html to produce deterministic HTML with 2 cites
     sample_html = (
+        '<title>Dummy Title - Wikipedia</title>'
         '<cite class="citation"><a href="https://a.com">A</a></cite>'
         '<cite class="citation"><a href="https://b.com">B</a></cite>'
     )
@@ -30,4 +31,5 @@ def test_references_round_trip(monkeypatch):
     resp2 = client.get(f"/api/v1/references/{job_id}")
     assert resp2.status_code == 200
     data = resp2.json()
-    assert len(data["references"]) == 2 
+    assert len(data["references"]) == 2
+    assert data["title"] == "Dummy Title - Wikipedia" 
