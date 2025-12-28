@@ -45,7 +45,7 @@ export async function getProgress(jobId: string) {
 
 export async function getReferences(jobId: string) {
   try {
-    return await jsonFetch<{ references: Reference[] }>(`${API_ROOT}/api/v1/references/${jobId}`);
+    return await jsonFetch<{ references: Reference[]; title: string | null }>(`${API_ROOT}/api/v1/references/${jobId}`);
   } catch (err: any) {
     if (err instanceof Error && /404/.test(err.message)) {
       return null; // not ready yet
@@ -84,7 +84,7 @@ export async function listPages() {
 }
 
 export async function getReferencesByPage(pageId: string) {
-  return jsonFetch<{ references: Reference[] }>(`${API_ROOT}/api/v1/pages/${pageId}/references`);
+  return jsonFetch<{ references: Reference[]; title: string | null }>(`${API_ROOT}/api/v1/pages/${pageId}/references`);
 }
 
 export async function deletePage(pageId: string) {

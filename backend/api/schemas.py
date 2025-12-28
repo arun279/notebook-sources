@@ -32,6 +32,7 @@ class ReferenceDTO(BaseModel):
 
 class ReferencesResponse(BaseModel):
     references: List[ReferenceDTO]
+    title: str | None = None
 
 
 class ScrapeRequest(BaseModel):

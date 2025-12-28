@@ -119,7 +119,10 @@ const ReferencesPage: React.FC = () => {
 
   return (
     <div>
-      <h2 className="text-2xl font-semibold mb-4">References</h2>
+      <div className="mb-4">
+        <h2 className="text-2xl font-semibold">References</h2>
+        {refsQuery.data?.title && <h3 className="text-lg text-gray-500">{refsQuery.data.title}</h3>}
+      </div>
       {!refsQuery.data && (
         <ProgressModal percent={progressQuery.data?.percent ?? 0} />
       )}

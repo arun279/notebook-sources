@@ -55,12 +55,13 @@ async def list_pages() -> List[PageSummary]:  # noqa: D401
 
 @router.get("/pages/{page_id}/references", response_model=ReferencesResponse)
 async def references_by_page(page_id: uuid.UUID) -> ReferencesResponse:  # noqa: D401
-    page = repo.list_references(page_id)
-    if page is None:
+    page_list = [p for p in repo.list_wikipedia_pages() if p.id == page_id]
+    if not page_list:
         raise HTTPException(status_code=404, detail="Page not found")
+    page = page_list[0]
     refs = repo.list_references(page_id)
     dtos = [ReferenceDTO.model_validate(r) for r in refs]  # type: ignore[arg-type]
-    return ReferencesResponse(references=dtos)
+    return ReferencesResponse(references=dtos, title=page.title)
 
 
 # ---------------- Delete page ----------------

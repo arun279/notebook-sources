@@ -57,9 +57,15 @@ async def get_references(job_id: uuid.UUID) -> ReferencesResponse:  # noqa: D401
     page_id = job_page_map.get(job_id)
     if page_id is None:
         raise HTTPException(status_code=404, detail="Job not found or not completed yet")
+
+    page_list = [p for p in repo.list_wikipedia_pages() if p.id == page_id]
+    if not page_list:
+        raise HTTPException(status_code=404, detail="Page not found")
+    page = page_list[0]
+
     refs = repo.list_references(page_id)
     dtos = [ReferenceDTO.model_validate(r) for r in refs]  # type: ignore[arg-type]
-    return ReferencesResponse(references=dtos)
+    return ReferencesResponse(references=dtos, title=page.title)
 
 
 @router.post("/scrape", response_model=JobResponse, status_code=status.HTTP_202_ACCEPTED)
